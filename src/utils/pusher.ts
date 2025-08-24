@@ -22,21 +22,10 @@ export const subscribeToAuctionChannel = (callback: (data: ItemUpdateData) => vo
   const channel = pusher.subscribe('auction-updates');
   
   channel.bind('item-updated', (data: ItemUpdateData) => {
-    console.log('Pusher 이벤트 수신 (item-updated):', data);
     callback(data);
   });
   
-  // 연결 상태 모니터링
-  pusher.connection.bind('connected', () => {
-    console.log('Pusher 연결 성공');
-  });
-  
-  pusher.connection.bind('error', (err: any) => {
-    console.error('Pusher 연결 오류:', err);
-  });
-  
   return () => {
-    console.log('Pusher 구독 해제');
     pusher.unsubscribe('auction-updates');
   };
 };
@@ -63,7 +52,6 @@ export const notifyItemUpdate = async (action: 'bid' | 'added' | 'deleted', item
     if (!response.ok) {
       throw new Error('Pusher 알림 전송 실패');
     }
-    
 
   } catch (error) {
     console.error('❌ Pusher 알림 전송 실패:', error);

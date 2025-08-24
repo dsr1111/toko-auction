@@ -172,12 +172,8 @@ const BidModal = ({ isOpen, onClose, item, onBidSuccess }: BidModalProps) => {
 
       await notifyItemUpdate('bid', item.id);
 
-      // 즉시 로컬 상태 업데이트를 위한 콜백 호출
-      if (onBidSuccess) {
-        onBidSuccess();
-      }
-
       onClose();
+      onBidSuccess?.();
     } catch (err) {
       console.error('❌ 예상치 못한 오류:', err);
       setError('예상치 못한 오류가 발생했습니다.');
