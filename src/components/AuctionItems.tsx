@@ -39,20 +39,45 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
       console.log('🔄 총 입찰 금액 계산 시작');
       console.log('📊 현재 아이템 목록:', items);
       
+      // 아이템이 없으면 계산하지 않음
+      if (!items || items.length === 0) {
+        console.log('⚠️ 아이템 목록이 비어있어 계산을 건너뜁니다');
+        setTotalBidAmount(0);
+        return 0;
+      }
+      
+      console.log('🔗 Supabase 클라이언트:', supabase);
+      
+      // bid_history 테이블 조회 시도
       const { data: bidHistoryData, error } = await supabase
         .from('bid_history')
         .select('item_id, bid_amount, bid_quantity')
         .order('bid_amount', { ascending: false });
 
+      console.log('📋 bid_history 조회 결과:', { data: bidHistoryData, error });
+
       if (error) {
-        console.error('입찰내역 조회 실패:', error);
+        console.error('❌ 입찰내역 조회 실패:', error);
+        console.error('❌ 에러 상세:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         return 0;
       }
+
+      if (!bidHistoryData) {
+        console.log('⚠️ bid_history 데이터가 null입니다');
+        return 0;
+      }
+
+      console.log('📊 bid_history 데이터 개수:', bidHistoryData.length);
 
       // 입찰내역을 아이템별로 그룹화
       const bidHistoryMap = new Map<number, number[]>();
       
-      if (bidHistoryData) {
+      if (bidHistoryData && bidHistoryData.length > 0) {
         bidHistoryData.forEach(bid => {
           if (!bidHistoryMap.has(bid.item_id)) {
             bidHistoryMap.set(bid.item_id, []);
@@ -70,6 +95,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
       });
 
       console.log('📋 입찰 내역 맵:', bidHistoryMap);
+      console.log('📊 맵 크기:', bidHistoryMap.size);
 
       const total = items.reduce((total, item) => {
         console.log(`\n📦 아이템 "${item.name}" (ID: ${item.id}) 분석:`);
@@ -78,6 +104,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
         
         // 해당 아이템의 입찰내역 가져오기
         const itemBids = bidHistoryMap.get(item.id);
+        console.log(`   - bid_history에서 찾은 입찰내역:`, itemBids);
         
         if (itemBids && itemBids.length > 0) {
           // 수량 기반으로 입찰가 계산 (남은 수량만큼만)
@@ -108,10 +135,12 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
       setTotalBidAmount(total);
       return total;
     } catch (err) {
-      console.error('총 입찰가 계산 중 오류:', err);
+      console.error('❌ 총 입찰가 계산 중 예상치 못한 오류:', err);
+      console.error('❌ 에러 타입:', typeof err);
+      console.error('❌ 에러 스택:', err instanceof Error ? err.stack : '스택 없음');
       return 0;
     }
-  }, []); // 의존성 배열을 비워서 함수가 새로 생성되지 않도록 함
+  }, [items, supabase]); // items 의존성 추가
 
   const fetchItems = useCallback(async () => {
     try {
@@ -251,9 +280,12 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
     }
   }, [onItemAdded, fetchItems]);
 
+  // items가 변경될 때마다 총 입찰 금액 계산 (fetchItems 완료 후)
   useEffect(() => {
-    calculateTotalBidAmount();
-  }, [items]); // calculateTotalBidAmount 의존성 제거
+    if (items.length > 0) {
+      calculateTotalBidAmount();
+    }
+  }, [items.length]); // items.length만 의존성으로 사용
 
   if (loading) {
     return (
