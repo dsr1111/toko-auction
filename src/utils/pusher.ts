@@ -21,9 +21,22 @@ export const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
 export const subscribeToAuctionChannel = (callback: (data: ItemUpdateData) => void) => {
   const channel = pusher.subscribe('auction-updates');
   
-  channel.bind('item-updated', callback);
+  channel.bind('item-updated', (data: ItemUpdateData) => {
+    console.log('Pusher 이벤트 수신 (item-updated):', data);
+    callback(data);
+  });
+  
+  // 연결 상태 모니터링
+  pusher.connection.bind('connected', () => {
+    console.log('Pusher 연결 성공');
+  });
+  
+  pusher.connection.bind('error', (err: any) => {
+    console.error('Pusher 연결 오류:', err);
+  });
   
   return () => {
+    console.log('Pusher 구독 해제');
     pusher.unsubscribe('auction-updates');
   };
 };

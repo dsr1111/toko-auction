@@ -115,11 +115,14 @@ export default function TotalBidSummary() {
   // Pusher로 실시간 업데이트 (값이 변할 때만)
   useEffect(() => {
     const unsubscribe = subscribeToAuctionChannel((data: { action: string; itemId?: number; timestamp: number }) => {
+      console.log('TotalBidSummary Pusher 이벤트:', data);
+      
       // 마지막 업데이트 이후 1초가 지났을 때만 업데이트 (중복 방지)
       const timeSinceLastUpdate = Date.now() - lastUpdateTime;
       if (timeSinceLastUpdate > 1000) {
         if (data.action === 'bid' || data.action === 'added' || data.action === 'deleted') {
           // 입찰, 추가, 삭제 시 총 입찰가 재계산
+          console.log('총 입찰가 재계산 트리거:', data.action);
           fetchItems();
         }
       }
@@ -127,6 +130,37 @@ export default function TotalBidSummary() {
     
     return unsubscribe;
   }, [fetchItems, lastUpdateTime]);
+
+  // Supabase Realtime으로 실시간 업데이트
+  useEffect(() => {
+    const channel = supabase
+      .channel('total-bid-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'items'
+        },
+        (payload) => {
+          console.log('TotalBidSummary Supabase Realtime:', payload);
+          
+          // 마지막 업데이트 이후 1초가 지났을 때만 업데이트 (중복 방지)
+          const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+          if (timeSinceLastUpdate > 1000) {
+            if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+              console.log('총 입찰가 재계산 트리거 (Realtime):', payload.eventType);
+              fetchItems();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchItems, lastUpdateTime]);
 
   // 초기 로드만 실행 (자동 새로고침 제거)
   useEffect(() => {

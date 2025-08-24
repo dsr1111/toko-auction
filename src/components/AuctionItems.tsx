@@ -108,7 +108,6 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
           });
         });
-
       }
     } catch (err) {
       console.error('아이템 업데이트 중 오류:', err);
@@ -118,11 +117,15 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
   // Pusher로 실시간 업데이트 (스마트 업데이트)
   useEffect(() => {
     const unsubscribe = subscribeToAuctionChannel((data: { action: string; itemId?: number; timestamp: number }) => {
+      console.log('Pusher 이벤트 수신:', data); // 디버깅용 로그
+      
       if (data.action === 'bid' && data.itemId) {
         // 입찰 업데이트: 해당 아이템만 업데이트 (깜빡임 없음)
+        console.log('입찰 업데이트:', data.itemId);
         updateSingleItem(data.itemId);
       } else if (data.action === 'added' || data.action === 'deleted') {
         // 추가/삭제: 전체 목록 새로고침 (필요한 경우만)
+        console.log('아이템 추가/삭제:', data.action);
         fetchItems();
       }
     });
@@ -130,6 +133,53 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
     // 컴포넌트 언마운트 시 구독 해제
     return unsubscribe;
   }, [fetchItems, updateSingleItem]);
+
+  // 실시간 구독을 위한 Supabase Realtime 설정
+  useEffect(() => {
+    const channel = supabase
+      .channel('items-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'items'
+        },
+        (payload) => {
+          console.log('Supabase Realtime 이벤트:', payload);
+          
+          if (payload.eventType === 'UPDATE') {
+            // 개별 아이템 업데이트
+            const updatedItem = payload.new as Item;
+            setItems(prevItems => {
+              const updatedItems = prevItems.map(item => 
+                item.id === updatedItem.id ? updatedItem : item
+              );
+              
+              // 마감된 아이템을 뒤로 보내기
+              const now = new Date().getTime();
+              return updatedItems.sort((a, b) => {
+                const aEnded = a.end_time ? new Date(a.end_time).getTime() <= now : false;
+                const bEnded = b.end_time ? new Date(b.end_time).getTime() <= now : false;
+                
+                if (aEnded && !bEnded) return 1;
+                if (!aEnded && bEnded) return -1;
+                
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+            });
+          } else if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            // 아이템 추가/삭제 시 전체 목록 새로고침
+            fetchItems();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchItems]);
 
   useEffect(() => {
     if (onItemAdded) {
@@ -163,7 +213,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
         <ItemCard 
           key={item.id} 
           item={item} 
-          onBidSuccess={fetchItems} 
+          onBidSuccess={() => updateSingleItem(item.id)} 
           onItemDeleted={fetchItems}
         />
       ))}
