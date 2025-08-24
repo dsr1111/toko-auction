@@ -38,11 +38,14 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
     try {
       console.log('🔄 총 입찰 금액 계산 시작');
       console.log('📊 현재 아이템 목록:', items);
+      console.log('⏳ 로딩 상태:', loading);
       
-      // 아이템이 없으면 계산하지 않음
-      if (!items || items.length === 0) {
-        console.log('⚠️ 아이템 목록이 비어있어 계산을 건너뜁니다');
-        setTotalBidAmount(0);
+      // 로딩 중이거나 아이템이 없으면 계산하지 않음
+      if (loading || !items || items.length === 0) {
+        console.log('⚠️ 로딩 중이거나 아이템 목록이 비어있어 계산을 건너뜁니다');
+        if (!loading) {
+          setTotalBidAmount(0);
+        }
         return 0;
       }
       
@@ -140,7 +143,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
       console.error('❌ 에러 스택:', err instanceof Error ? err.stack : '스택 없음');
       return 0;
     }
-  }, [items, supabase]); // items 의존성 추가
+  }, [items, supabase, loading]); // loading 의존성 추가
 
   const fetchItems = useCallback(async () => {
     try {
@@ -168,11 +171,6 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
         });
         
         setItems(sortedData);
-        
-        // 아이템 목록이 업데이트된 후 총 입찰 금액 계산
-        setTimeout(() => {
-          calculateTotalBidAmount();
-        }, 100);
       } else {
         setItems([]);
         setTotalBidAmount(0);
@@ -187,7 +185,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
     } finally {
       setLoading(false);
     }
-  }, [supabase]); // calculateTotalBidAmount 의존성 제거
+  }, [supabase]);
 
   useEffect(() => {
     fetchItems();
@@ -227,11 +225,6 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
           });
         });
-        
-        // 개별 아이템 업데이트 후 총 입찰 금액 재계산
-        setTimeout(() => {
-          calculateTotalBidAmount();
-        }, 100);
       } else {
         // 업데이트된 데이터가 없으면 전체 목록 새로고침
         fetchItems();
@@ -241,7 +234,7 @@ export default function AuctionItems({ onItemAdded }: { onItemAdded?: () => void
       // 에러 발생 시 전체 목록을 새로고침
       fetchItems();
     }
-  }, [supabase, fetchItems]); // calculateTotalBidAmount 의존성 제거
+  }, [supabase, fetchItems]);
 
   // Pusher로 실시간 업데이트 (스마트 업데이트)
   useEffect(() => {
