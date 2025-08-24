@@ -34,7 +34,7 @@ const Header = () => {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <h1 className="text-xl font-bold text-gray-900">
-              세계수 토벌 보상 경매
+              토벌 보상 경매
             </h1>
           </div>
           
